@@ -5,7 +5,7 @@
 > **Plateforme** : PNETLab
 > **Période** : 2025-2026
 
-[← Retour au portfolio](../index.md)
+[← Retour au portfolio](index.md)
 
 ---
 
@@ -67,7 +67,7 @@ dont les événements sont centralisés dans un SIEM.
 
 ## 3. Schéma d'architecture
 
-![Topologie de l'architecture sécurisée SecureTech](../assets/images/topologie-securetech.png)
+![Topologie de l'architecture sécurisée SecureTech](assets/images/topologie-securetech.png)
 
 **Lecture du schéma.** Le FortiGate est le point de convergence : `port1` vers Internet,
 `port2` en trunk 802.1Q vers le commutateur cœur (il porte le routage inter-VLAN et les ACL),
@@ -252,4 +252,4 @@ show spanning-tree summary
 
 ---
 
-[← Retour au portfolio](../index.md)
+[← Retour au portfolio](index.md)

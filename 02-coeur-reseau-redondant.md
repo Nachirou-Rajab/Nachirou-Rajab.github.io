@@ -4,7 +4,7 @@
 > **Plateforme** : PNETLab / Cisco IOS
 > **Période** : 2026
 
-[← Retour au portfolio](../index.md)
+[← Retour au portfolio](index.md)
 
 ---
 
@@ -35,7 +35,7 @@ d'entreprise multi-sites devant continuer à fonctionner malgré la panne d'un l
 
 ## 3. Schéma d'architecture
 
-![Topologie du cœur de réseau redondant](../assets/images/topologie-coeur-redondant.png)
+![Topologie du cœur de réseau redondant](assets/images/topologie-coeur-redondant.png)
 
 [À COMPLÉTER : exporte ta topologie PNETLab ou refais-la sous Draw.io, avec les aires OSPF,
 les adresses et les noms d'interfaces.]
@@ -93,4 +93,4 @@ résultat quantifié, exactement ce qu'un recruteur cherche.
 
 ---
 
-[← Retour au portfolio](../index.md)
+[← Retour au portfolio](index.md)

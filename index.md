@@ -14,7 +14,7 @@ architecture, choix de conception, configurations et résultats de tests.
 
 ## Projets
 
-### [1. Architecture réseau sécurisée pour PME](projets/01-securetech-architecture-securisee.md)
+### [1. Architecture réseau sécurisée pour PME](01-securetech-architecture-securisee.md)
 
 Conception complète d'une infrastructure segmentée pour une entreprise de 100 employés :
 4 VLAN, filtrage ACL inter-VLAN, pare-feu nouvelle génération avec DMZ, portail captif
@@ -22,7 +22,7 @@ pour les visiteurs et chaîne de supervision SIEM.
 
 `FortiGate` `Cisco IOS` `VLAN` `ACL` `Wazuh` `Suricata` `NagiosXI` `PNETLab`
 
-### [2. Cœur de réseau redondant à routage dynamique](projets/02-coeur-reseau-redondant.md)
+### [2. Cœur de réseau redondant à routage dynamique](02-coeur-reseau-redondant.md)
 
 Mise en œuvre d'un backbone OSPF multi-aires avec haute disponibilité : HSRP réparti par
 VLAN, agrégation de liens LACP et optimisation du spanning-tree.
