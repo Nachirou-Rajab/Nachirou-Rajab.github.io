@@ -23,7 +23,38 @@ automatiquement ses VLAN vers l'autre.
 
 ---
 
-## 2. Cahier des charges
+## 2. Besoins et prérequis
+
+### Équipements de la maquette
+
+| Rôle | Quantité | Type d'image | Fonction assurée |
+|---|---|---|---|
+| Routeur (R4, R3) | 2 | Image routeur Cisco IOS | Passerelles HSRP, routage inter-VLAN |
+| Commutateur (Switch5, Switch6) | 2 | Image commutateur Cisco IOS L2 | Commutation, EtherChannel, spanning-tree |
+| Poste client (VPC7, VPC8) | 2 | VPCS | Génération de trafic et validation |
+
+### Câblage requis
+
+| Lien | Extrémité 1 | Extrémité 2 | Rôle |
+|---|---|---|---|
+| Inter-routeurs | R4 Gi0/2 | R3 Gi0/0 | Liaison de secours entre passerelles |
+| Accès R4 | R4 Gi0/0 | Switch5 Gi0/0 | Trunk 802.1Q |
+| Accès R3 | R3 Gi0/1 | Switch6 Gi0/2 | Trunk 802.1Q |
+| Agrégation 1 | Switch5 Gi0/2 | Switch6 Gi0/0 | Membre du Port-channel 1 |
+| Agrégation 2 | Switch5 Gi0/3 | Switch6 Gi0/3 | Membre du Port-channel 1 |
+| Poste VLAN 10 | VPC7 eth0 | Switch5 Gi0/1 | Port d'accès |
+| Poste VLAN 20 | VPC8 eth0 | Switch6 Gi0/1 | Port d'accès |
+
+### Prérequis fonctionnels
+
+- Une image routeur supportant HSRP version 2 et les sous-interfaces 802.1Q
+- Une image commutateur supportant LACP et Rapid-PVST
+- Ressources suffisantes sur l'hyperviseur : compter environ 512 Mo de mémoire vive par
+  équipement émulé, soit environ 2 Go pour l'ensemble de la maquette
+
+---
+
+## 3. Cahier des charges
 
 | Exigence | Traduction technique |
 |---|---|
@@ -62,7 +93,7 @@ automatiquement ses VLAN vers l'autre.
 
 ---
 
-## 3. Schéma d'architecture
+## 4. Schéma d'architecture
 
 ![Topologie du cœur de réseau redondant](topologie-coeur-redondant.png)
 
@@ -84,9 +115,9 @@ routeur de secours.
 
 ---
 
-## 4. Procédure de déploiement
+## 5. Procédure de déploiement
 
-### 4.1 Configuration de R4 — passerelle active du VLAN 10
+### 5.1 Configuration de R4 — passerelle active du VLAN 10
 
 ```
 hostname R4
@@ -137,7 +168,7 @@ service password-encryption
 > temporisateurs sont abaissés à 1 seconde pour les messages hello et 3 secondes pour le délai
 > de bascule, contre 3 et 10 par défaut, ce qui réduit la coupure perçue par l'utilisateur.
 
-### 4.2 Configuration de R3 — passerelle active du VLAN 20
+### 5.2 Configuration de R3 — passerelle active du VLAN 20
 
 Configuration miroir : les priorités sont inversées.
 
@@ -181,7 +212,7 @@ no ip domain-lookup
 service password-encryption
 ```
 
-### 4.3 Configuration de Switch5
+### 5.3 Configuration de Switch5
 
 ```
 hostname Switch5
@@ -239,7 +270,7 @@ interface range GigabitEthernet1/0 - 3
  shutdown
 ```
 
-### 4.4 Configuration de Switch6
+### 5.4 Configuration de Switch6
 
 ```
 hostname Switch6
@@ -305,7 +336,7 @@ interface range GigabitEthernet1/0 - 3
  shutdown
 ```
 
-### 4.5 Configuration des postes de test
+### 5.5 Configuration des postes de test
 
 Sous VPCS :
 
@@ -320,7 +351,7 @@ continue de fonctionner quand celui-ci change.
 
 ---
 
-## 5. Recette et tests
+## 6. Recette et tests
 
 | # | Test | Commande ou méthode | Résultat attendu |
 |---|---|---|---|
@@ -359,14 +390,91 @@ Le nombre de paquets perdus constitue le résultat mesuré de ce laboratoire.
 
 ---
 
-## 6. Difficultés rencontrées et enseignements
+## 7. Points de vigilance et diagnostic
 
-*Section à renseigner après réalisation, sur le modèle du premier case study : symptôme observé,
-diagnostic, résolution, enseignement retenu.*
+Cette architecture combine quatre mécanismes qui dépendent les uns des autres : une erreur sur
+l'un se manifeste souvent par un symptôme qui semble venir d'un autre. Les points ci-dessous
+recensent les causes de panne les plus fréquentes, avec la démarche de diagnostic associée.
+
+### 7.1 L'agrégation ne se forme pas
+
+**Symptôme.** `show etherchannel summary` affiche le Port-channel en état (SD) ou les ports
+membres marqués (I) pour *independent*, au lieu de (P) pour *bundled*.
+
+**Causes possibles.** LACP exige que les deux interfaces membres soient rigoureusement
+identiques : même mode (access ou trunk), même liste de VLAN autorisés, même VLAN natif, même
+vitesse et même duplex. La moindre divergence empêche l'agrégation. Autre cause classique : les
+deux extrémités configurées en `mode passive`, auquel cas aucune ne prend l'initiative de la
+négociation — au moins l'un des deux côtés doit être en `mode active`.
+
+**Démarche.** Comparer `show running-config interface` sur les quatre interfaces membres, puis
+`show lacp neighbor` pour vérifier que le voisin est bien détecté.
+
+### 7.2 Le poste ne joint pas sa passerelle virtuelle
+
+**Symptôme.** Le ping vers l'adresse virtuelle échoue alors que les sous-interfaces du routeur
+sont en up/up.
+
+**Causes possibles.** La plus fréquente est une incohérence de VLAN natif entre le routeur et le
+commutateur : `encapsulation dot1Q 99 native` d'un côté doit correspondre à
+`switchport trunk native vlan 99` de l'autre. Vient ensuite l'oubli du `no shutdown` sur
+l'interface physique du routeur — les sous-interfaces héritent de son état, et une interface
+physique fermée les rend toutes inopérantes. Enfin, un VLAN absent de la liste
+`switchport trunk allowed vlan` sur l'un des trunks coupe silencieusement le trafic concerné.
+
+**Démarche.** `show interfaces trunk` sur les commutateurs, `show vlan brief` pour vérifier
+l'existence des VLAN, et surveiller les messages de type *native VLAN mismatch* dans les
+journaux.
+
+### 7.3 Les deux routeurs se déclarent actifs simultanément
+
+**Symptôme.** `show standby brief` affiche l'état *Active* sur R4 et sur R3 pour le même groupe.
+
+**Cause.** Les deux routeurs ne se voient pas : leurs messages HSRP ne circulent pas entre eux,
+faute de continuité de couche 2 sur le VLAN concerné. Chacun en déduit que son homologue est
+tombé et prend le rôle actif. La conséquence est un conflit d'adresse virtuelle et un trafic
+erratique.
+
+**Démarche.** Vérifier que le VLAN est bien autorisé sur toute la chaîne de trunks, y compris
+sur l'agrégation entre commutateurs, et que le Port-channel est opérationnel. Ce symptôme révèle
+presque toujours un problème de couche 2, pas de configuration HSRP.
+
+### 7.4 La bascule ne se produit pas, ou trop lentement
+
+**Symptôme.** Après extinction du routeur actif, le ping reste bloqué bien au-delà de quelques
+secondes.
+
+**Causes possibles.** Les temporisateurs sont restés à leurs valeurs par défaut, soit 3 secondes
+pour les messages hello et 10 secondes pour le délai de bascule. Autre cause : la préemption n'a
+pas été configurée, ce qui n'empêche pas la bascule initiale mais interdit le retour à l'état
+nominal après réparation.
+
+**Démarche.** `show standby` affiche les temporisateurs en vigueur et le décompte avant
+déclaration de panne. La commande `debug standby` permet d'observer la transition en direct.
+
+### 7.5 Le trafic emprunte un chemin sous-optimal
+
+**Symptôme.** L'architecture fonctionne, mais le trafic d'un VLAN traverse systématiquement
+l'agrégation inter-commutateurs alors qu'une passerelle est directement accessible.
+
+**Cause.** Le root bridge du spanning-tree n'est pas aligné sur le commutateur raccordé au
+routeur HSRP actif. La couche 2 et la couche 3 prennent alors des décisions contradictoires.
+
+**Démarche.** Croiser `show spanning-tree vlan 10` et `show standby brief` : pour chaque VLAN,
+le root bridge doit se trouver du même côté que le routeur actif. C'est le point le plus souvent
+négligé dans les architectures redondantes, et celui qui distingue une conception réfléchie
+d'un assemblage fonctionnel mais inefficace.
 
 ---
 
-## 7. Améliorations envisagées
+## 8. Difficultés rencontrées
+
+*À renseigner après réalisation du laboratoire, sur le modèle du premier case study : symptôme
+observé, diagnostic mené, résolution appliquée, enseignement retenu.*
+
+---
+
+## 9. Améliorations envisagées
 
 - Suivi d'interface HSRP (`standby track`) pour déclencher la bascule si la liaison montante
   tombe, et non uniquement si le routeur s'éteint
