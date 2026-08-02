@@ -227,19 +227,62 @@ show spanning-tree summary
 
 ## 6. Difficultés rencontrées et enseignements
 
-### Difficulté 1 — [À COMPLÉTER]
+### Difficulté 1 — Perte totale de connectivité après activation de Dynamic ARP Inspection
 
-**Symptôme observé :** …
-**Diagnostic :** …
-**Résolution :** …
-**Ce que j'en retiens :** …
+**Symptôme observé.** Immédiatement après l'activation de DAI sur les quatre VLAN, les postes
+ont cessé de communiquer entre eux, et surtout de joindre leur passerelle par défaut. Le réseau
+était fonctionnel juste avant la commande : l'origine était donc clairement liée à DAI, mais la
+configuration semblait pourtant conforme à ce qui était attendu.
 
-### Difficulté 2 — [À COMPLÉTER]
+**Diagnostic.** En consultant la documentation Cisco sur le fonctionnement de Dynamic ARP
+Inspection, j'ai compris le mécanisme sous-jacent : DAI ne fonctionne pas de manière autonome.
+Il vérifie chaque message ARP reçu sur un port non fiable contre la table de liaisons construite
+par DHCP Snooping (adresse MAC, adresse IP, VLAN, port). Tout paquet ARP dont le couple
+MAC/IP ne figure pas dans cette table est considéré comme une tentative d'usurpation et rejeté.
 
-**Symptôme observé :** …
-**Diagnostic :** …
-**Résolution :** …
-**Ce que j'en retiens :** …
+Deux conséquences expliquaient le symptôme :
+
+- **Le port trunk vers le pare-feu n'était pas déclaré fiable.** Les réponses ARP émises par
+  la passerelle étaient donc inspectées et rejetées, empêchant les postes de résoudre son
+  adresse MAC — donc de sortir de leur VLAN.
+- **Les équipements adressés statiquement étaient absents de la table**, puisqu'ils n'obtiennent
+  jamais de bail DHCP. Leurs messages ARP étaient rejetés pour la même raison.
+
+**Résolution.** J'ai déclaré fiables les ports d'infrastructure, c'est-à-dire ceux qui mènent
+vers le pare-feu et vers le serveur DHCP légitime :
+
+```
+interface GigabitEthernet0/0
+ description Trunk vers FortiGate — port de confiance DAI
+ ip arp inspection trust
+```
+
+Pour les équipements en adressage statique, la table de liaisons peut être complétée
+manuellement afin qu'ils soient reconnus comme légitimes :
+
+```
+ip source binding <adresse-mac> vlan 30 <adresse-ip> interface GigabitEthernet0/2
+```
+
+La vérification s'est faite avec `show ip arp inspection statistics`, qui montre le compteur de
+paquets rejetés cesser d'augmenter, et `show ip dhcp snooping binding` pour contrôler le contenu
+de la table.
+
+**Ce que j'en retiens.** Trois enseignements.
+
+D'abord, **DAI et DHCP Snooping forment un ensemble indissociable** : activer le premier sans
+comprendre la table que construit le second revient à couper le réseau. La logique de confiance
+est la même dans les deux cas — les ports orientés vers l'infrastructure sont fiables, les ports
+utilisateurs ne le sont pas.
+
+Ensuite, **un mécanisme de sécurité mal paramétré produit exactement le même effet qu'une
+panne**. Un déni de service provoqué par sa propre configuration est aussi coûteux pour
+l'entreprise qu'une attaque. Cela m'a appris à activer ce type de protection progressivement,
+un VLAN à la fois, plutôt que globalement.
+
+Enfin, **la documentation constructeur donne la réponse plus vite que le tâtonnement**. Relire
+le fonctionnement du mécanisme m'a fait gagner du temps par rapport à la modification
+successive de paramètres au hasard.
 
 ---
 
