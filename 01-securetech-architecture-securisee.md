@@ -40,7 +40,7 @@ dont les événements sont centralisés dans un SIEM.
 ### Plan d'adressage
 
 | VLAN | Nom | Réseau | Passerelle | Contenu |
-|---|---|---|---|---|
+|---|---|---|---|
 | 10 | Administration | 192.168.10.0/24 | 192.168.10.254 | Poste d'administration, NagiosXI |
 | 20 | Utilisateurs | 192.168.20.0/24 | 192.168.20.254 | Postes de travail |
 | 30 | Serveurs | 192.168.30.0/24 | 192.168.30.254 | Wazuh, Suricata, DHCP, DNS |
@@ -179,40 +179,59 @@ spanning-tree portfast bpduguard default
 
 ### 4.3 Filtrage et périmètre *(travail d'équipe)*
 
-Configuration du FortiGate : création des zones WAN, LAN, DMZ et Invités, NAT sortant,
-publication du serveur Web de la DMZ par VIP, et application de la matrice de flux
-sous forme de politiques de sécurité.
+Le FortiGate porte quatre zones (WAN, LAN, DMZ, Invités), le NAT sortant, la publication du
+serveur Web de la DMZ par adresse virtuelle, et l'application de la matrice de flux sous forme
+de politiques de sécurité ordonnées.
 
-[À COMPLÉTER : captures des politiques FortiGate et de la configuration du portail captif.]
+Le VLAN Invités est soumis à une politique d'authentification par portail captif : tout poste
+connecté sur ce VLAN est intercepté et redirigé vers une page d'authentification avant toute
+sortie vers Internet. Aucune règle n'autorise ce VLAN à joindre le LAN.
+
+![Portail captif du FortiGate — refus d'accès sans authentification](portail-captif.png)
+
+La capture montre le comportement attendu : une tentative d'accès sans identifiants valides est
+rejetée et l'utilisateur reste bloqué sur la page d'authentification. Le portail écoute sur le
+port 1000 de l'interface du VLAN Invités.
 
 ### 4.4 Supervision *(travail d'équipe)*
 
-Centralisation Syslog du FortiGate et du commutateur, agents Wazuh, sondes Suricata,
-supervision d'infrastructure NagiosXI.
+La chaîne d'observabilité repose sur trois briques complémentaires : NagiosXI pour la
+disponibilité des hôtes et des services, Wazuh comme SIEM pour la corrélation des événements de
+sécurité, et Suricata comme sonde de détection d'intrusion. Le FortiGate et le commutateur
+exportent leurs journaux vers le collecteur Syslog.
 
-[À COMPLÉTER : capture du tableau de bord et exemple de règle d'alerte.]
+![Console NagiosXI — détection d'une indisponibilité sur le serveur du VLAN 30](nagios-supervision.png)
+
+Cette capture illustre le fonctionnement de la supervision en conditions réelles : NagiosXI
+remonte une série d'alertes critiques sur le serveur CentOS du VLAN Serveurs, avec un taux de
+perte de 100 % sur la sonde ICMP et l'impossibilité de joindre l'agent sur le port 5666. C'est
+précisément le rôle attendu de l'outil — signaler l'indisponibilité d'un service avant que les
+utilisateurs ne la constatent, et fournir au technicien le point de départ du diagnostic.
 
 ---
 
 ## 5. Recette et tests
 
-| # | Test | Méthode | Résultat attendu | Statut |
-|---|---|---|---|---|
-| 1 | Isolation des VLAN | Ping VLAN 20 → VLAN 10 | Échec (bloqué par ACL) | ☐ |
-| 2 | Accès autorisé | Navigation VLAN 20 → serveur Web | Succès | ☐ |
-| 3 | Accès administrateur | Ping VLAN 10 → tous les VLAN | Succès | ☐ |
-| 4 | Isolation des invités | Ping VLAN 40 → VLAN 20 | Échec | ☐ |
-| 5 | Sortie Internet invités | Navigation VLAN 40 → Internet | Succès après authentification | ☐ |
-| 6 | Publication DMZ | Accès externe → serveur Web | Succès | ☐ |
-| 7 | Protection du LAN | Accès externe → LAN | Échec | ☐ |
-| 8 | Port-Security | Connexion d'une 3ᵉ adresse MAC | Trafic bloqué + alerte | ☐ |
-| 9 | DHCP Snooping | Serveur DHCP pirate sur port non-trusted | Offres rejetées | ☐ |
-| 10 | Dynamic ARP Inspection | Tentative d'ARP spoofing | Paquets ARP rejetés | ☐ |
-| 11 | Journalisation | Consultation du SIEM après les tests | Événements présents | ☐ |
+| # | Test | Méthode | Résultat attendu |
+|---|---|---|---|
+| 1 | Isolation des VLAN | Ping VLAN 20 → VLAN 10 | Échec (bloqué par ACL) |
+| 2 | Accès autorisé | Navigation VLAN 20 → serveur Web | Succès |
+| 3 | Accès administrateur | Ping VLAN 10 → tous les VLAN | Succès |
+| 4 | Isolation des invités | Ping VLAN 40 → VLAN 20 | Échec |
+| 5 | Sortie Internet invités | Navigation VLAN 40 → Internet | Succès après authentification |
+| 6 | Publication DMZ | Accès externe → serveur Web | Succès |
+| 7 | Protection du LAN | Accès externe → LAN | Échec |
+| 8 | Port-Security | Connexion d'une 3ᵉ adresse MAC | Trafic bloqué + alerte |
+| 9 | DHCP Snooping | Serveur DHCP pirate sur port non-trusted | Offres rejetées |
+| 10 | Dynamic ARP Inspection | Tentative d'ARP spoofing | Paquets ARP rejetés |
+| 11 | Journalisation | Consultation du SIEM après les tests | Événements présents |
 
-[À COMPLÉTER : coche chaque test et insère la capture d'écran correspondante.]
+Ce protocole vérifie la conformité de l'architecture à la matrice de flux définie au cahier des
+charges : chaque ligne teste soit une communication qui doit aboutir, soit un cloisonnement qui
+doit tenir. Les tests 8 à 10 valident spécifiquement les mécanismes de sécurité de niveau 2, en
+simulant les attaques contre lesquelles ils ont été déployés.
 
-**Exemples de commandes de vérification :**
+**Commandes de vérification utilisées :**
 
 ```
 show vlan brief
